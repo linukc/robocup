@@ -90,7 +90,8 @@ def do_inference(engine, pics_1, h_input_1, d_input_1, h_output, d_output, strea
 def probability2explicit_bin_mask(border, *args):
 	res = []
 	for mask in args:
-		_, mask = cv2.threshold(mask, border, 255, cv2.THRESH_BINARY)
+		mask = np.where(mask < border, mask, 255)
+		mask = np.where(mask >= border, mask, 0)
 		res.append(mask)
 	return res
 
@@ -101,16 +102,21 @@ def printing_info(min_area, depth, params, *args):
 		for cnt in contours:
 			(center_x, center_y), (length_x, length_y), angle = cv2.minAreaRect(cnt)
 			center_x, center_y = int(center_x), int(center_y)
-			center_z = depth[center_x][center_y]
+			center_z = depth[center_y][center_x]
 			area = int(length_x * length_y)
 			if area > min_area:
 				x, y, z = convert(params, [center_x, center_y], center_z)
-				print('-----------', obj, '-----------')
-				print('CenterX -', x)
-				print('CenterY -', y)
-				print('CenterZ -', z)
-				print('Angle -', angle)
-				print('-------------------------------')
+				print('+++++++++++', obj, '+++++++++++')
+				print('Area :', area)
+				print('CenterX :', x)
+				print('CenterY :', y)
+				print('CenterZ :', z)
+				print('Angle :', angle)
+				print('+++++++++++++++++++++++++++++++')
+			else:
+				print('########## Rejected -', obj, ':', center_x, center_y, area) 
+	for _ in range(5):
+		print()
 
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 trt_runtime = trt.Runtime(TRT_LOGGER)
@@ -121,31 +127,33 @@ engine = load_engine(trt_runtime, serialized)
 print('---STARTING PIPELINE---')
 pipeline = rs.pipeline()
 config = rs.config()
-config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
 config.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30)
+config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
 profile = pipeline.start(config)
 depth_sensor = profile.get_device().first_depth_sensor()
-depth_scale = depth_sensor.get_depth_scale()
+#depth_scale = depth_sensor.get_depth_scale()
 align_to = rs.stream.color
 align = rs.align(align_to)
 
-output = np.ones((480, 640))
+output = np.ones((200, 200))
 print('---SKIPPING FEW FRAMES FOR CALIBRATION---')
-for i in range(20):
+for i in range(15):
 	pipeline.wait_for_frames()
 
 print('---STARTING LOOP---')
 while True:
 	frames = pipeline.wait_for_frames()
-	aligned_frames = align.process(frames)
-	aligned_depth_frame = aligned_frames.get_depth_frame()
-	color_frame = aligned_frames.get_color_frame()
 
-	if not aligned_depth_frame or not color_frame:
-		continue
 	key = cv2.waitKey(1)
 	if key & 0xFF == ord('p'):
 		print('p button pressed')
+
+		aligned_frames = align.process(frames)
+		aligned_depth_frame = aligned_frames.get_depth_frame()
+		color_frame = aligned_frames.get_color_frame()
+		if not aligned_depth_frame or not color_frame:
+			continue
+
 		d_in = aligned_depth_frame.profile.as_video_stream_profile().intrinsics
 		depth_image = np.asanyarray(aligned_depth_frame.get_data())
 		color_image = np.asanyarray(color_frame.get_data())
@@ -160,20 +168,22 @@ while True:
 		square = predict[..., 3]*255
 		kremlin = predict[..., 4]*255
 
-		beam, shaft, sleeve, square, kremlin = probability2explicit_bin_mask(225,
+		beam, shaft, sleeve, square, kremlin = probability2explicit_bin_mask(175,
 					      beam,
 					      shaft,
 					      sleeve,
 					      square,
 					      kremlin)
-		printing_info(0, depth_image, d_in, beam, shaft, sleeve, square, kremlin)
 
-		output = np.hstack((np.resize(color_image, (192, 256)),
-					np.resize(beam, (192, 256)),
-					np.resize(shaft, (192, 256)),
-					np.resize(sleeve, (192, 256)),
-					np.resize(square, (192, 256)),
-					np.resize(kremlin, (192, 256))))
+		cv2.imwrite('test/color.png', color_image)
+		cv2.imwrite('test/beam.png', beam)
+		cv2.imwrite('test/shaft.png', shaft)
+		cv2.imwrite('test/sleeve.png', sleeve)
+		cv2.imwrite('test/square.png', square)
+		cv2.imwrite('test/kremlin.png', kremlin)
+
+		printing_info(1500, depth_image, d_in, beam, shaft, sleeve, square, kremlin)
+		print('ready')
 
 	elif key & 0xFF == ord('q'):
 		print('q button pressed')
