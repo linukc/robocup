@@ -1,4 +1,5 @@
 import cv2
+import math
 import tensorrt as trt
 import pycuda.driver as cuda
 import pycuda.autoinit
@@ -100,9 +101,23 @@ def printing_info(min_area, depth, params, *args):
 	for img, obj in zip(args, objects):
 		contours, _ = cv2.findContours(np.array(img, dtype=np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 		for cnt in contours:
-			(center_x, center_y), (length_x, length_y), angle = cv2.minAreaRect(cnt)
+			rect = cv2.minAreaRect(cnt)
+			(center_x, center_y), (length_x, length_y), _ = rect
 			center_x, center_y = int(center_x), int(center_y)
 			center_z = depth[center_y][center_x]
+			#angle
+			box = np.int64(cv2.boxPoints(rect))
+			#
+			edge1 = np.int0((box[1][0] - box[0][0], box[1][1] - box[0][1]))
+			edge2 = np.int0((box[2][0] - box[1][0], box[2][1] - box[1][1]))
+			usedEdge = edge1
+			if cv2.norm(edge2) > cv2.norm(edge1):
+				usedEdge = edge2
+			if usedEdge[1] == 0:
+				angle = 90*math.pi/180
+			else:
+				angle = 90*math.pi/180 - math.atan2(-usedEdge[1], usedEdge[0])
+			#
 			area = int(length_x * length_y)
 			if area > min_area:
 				x, y, z = convert(params, [center_x, center_y], center_z)

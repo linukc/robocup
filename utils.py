@@ -1,4 +1,5 @@
 import cv2
+import math
 import tensorrt as trt
 import pycuda.driver as cuda
 import pycuda.autoinit
@@ -110,17 +111,32 @@ def make_binary(mask, border):
 	mask = np.where(mask >= border, mask, 0)
 	return mask
 
-
 def get_info(mask, depth, params, min_area):
 	contours, _ = cv2.findContours(np.array(mask, dtype=np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 	for cnt in contours:
-		(center_x, center_y), (length_x, length_y), angle = cv2.minAreaRect(cnt)
+		rect = cv2.minAreaRect(cnt)
+		box = np.int64(cv2.boxPoints(rect))
+		print(rect)
+		(center_x, center_y), (length_x, length_y), _ = rect
+		edge1 = np.int0((box[1][0] - box[0][0], box[1][1] - box[0][1]))
+		edge2 = np.int0((box[2][0] - box[1][0], box[2][1] - box[1][1]))
+		usedEdge = edge1
+		if cv2.norm(edge2) > cv2.norm(edge1):
+			usedEdge = edge2
+		#vertical
+		if usedEdge[1] == 0:
+			angle = 90*math.pi/180
+		else:
+			angle = 90*math.pi/180 - math.atan2(-usedEdge[1], usedEdge[0])
+
 		center_x, center_y = int(center_x), int(center_y)
 		center_z = depth[center_y][center_x]
 		area = int(length_x * length_y)
 		if area > min_area:
+			print(center_x,center_y,center_z)
 			x, y, z = convert(params, [center_x, center_y], center_z)
-			return round(x,1), round(y,1), round(z, 1), round(angle/57.3, 1)
+			print(x , y ,z)
+			return round(x,1), round(y,1), round(z, 1), round(angle, 3)
 	return
 
 
