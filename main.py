@@ -3,6 +3,31 @@ import tensorrt as trt
 from segmentation_models import get_preprocessing
 import pyrealsense2 as rs
 from utils import make_binary, get_info, get_camera, predict, pars, make_msg, MySocket, load_engine
+from utils import save_image
+
+def main():
+	#eventloop
+	while True:
+		print('ready')
+		input = socket.myreceive().decode()
+		sync, obj_index = pars(input)
+		print(sync, obj_index)
+
+		color, depth, camera_params = get_camera(pipeline, align)
+		raw_mask = predict(engine, preproc(color), obj_index)
+		binary_mask = make_binary(raw_mask, border=185)
+		info = get_info(obj_index, binary_mask, depth, camera_params, min_area=1500)
+		if not info:
+			msg = 'c:{}:None'.format(sync)
+		else:
+			x, y, z, angle = info
+			msg = make_msg(sync, x, y, z, angle)
+		print('---Message---')
+		print(msg)
+		print('----------------------')
+		socket.mysend(msg.encode(), '172.34.0.247', 19090)
+		#save for debug
+		save_image(preproc(color), raw_mask, binary_mask)
 
 #camera
 pipeline = rs.pipeline()
@@ -30,24 +55,8 @@ try:
 except:
 	print('Cannot connect to host-port')
 
-#eventloop
-while True:
-	print('ready')
-	input = socket.myreceive().decode()
-	sync, obj_index = pars(input)
-	print(sync, obj_index)
-
-	color, depth, camera_params = get_camera(pipeline, align)
-	raw_mask = predict(engine, preproc(color), obj_index)
-	binary_mask = make_binary(raw_mask, border=185)
-	info = get_info(binary_mask, depth, camera_params, min_area=1500)
-	if not info:
-		msg = 'c:{}:None'.format(sync)
-	else:
-		x, y, z, angle = info
-		msg = make_msg(sync, x, y, z, angle)
-	print(msg)
-	socket.mysend(msg.encode(), '192.168.0.208', 19090)
-
-#final
-pipeline.stop()
+try:
+	main()
+except:
+	pipeline.stop()
+	print('finish')

@@ -111,32 +111,46 @@ def make_binary(mask, border):
 	mask = np.where(mask >= border, mask, 0)
 	return mask
 
-def get_info(mask, depth, params, min_area):
-	contours, _ = cv2.findContours(np.array(mask, dtype=np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+def preprocessing_for_shaft(mask, box):
+	black = []
+	white = []
+	for point in box:
+		if mask[point[0], point[1]] == '0':
+			black.append(point)
+		else:
+			white.append(point)
+
+
+def get_info(obj_index, mask, depth, params, min_area):
+	contours, _ = cv2.findContours(np.array(mask, dtype=np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 	for cnt in contours:
 		rect = cv2.minAreaRect(cnt)
 		box = np.int64(cv2.boxPoints(rect))
-		print(rect)
 		(center_x, center_y), (length_x, length_y), _ = rect
+		center_x, center_y = int(center_x), int(center_y)
 		edge1 = np.int0((box[1][0] - box[0][0], box[1][1] - box[0][1]))
 		edge2 = np.int0((box[2][0] - box[1][0], box[2][1] - box[1][1]))
-		usedEdge = edge1
-		if cv2.norm(edge2) > cv2.norm(edge1):
-			usedEdge = edge2
+		if obj_index == 2:
+			usedEdge, box = preprocessing_for_shaft(mask, box)
+			#po novu box polychit coordinati x and y pereraschitanie
+		else:
+			usedEdge = edge1
+			if cv2.norm(edge2) > cv2.norm(edge1):
+				usedEdge = edge2
 		#vertical
 		if usedEdge[1] == 0:
 			angle = 90*math.pi/180
 		else:
 			angle = 90*math.pi/180 - math.atan2(-usedEdge[1], usedEdge[0])
 
-		center_x, center_y = int(center_x), int(center_y)
 		center_z = depth[center_y][center_x]
 		area = int(length_x * length_y)
 		if area > min_area:
-			print(center_x,center_y,center_z)
 			x, y, z = convert(params, [center_x, center_y], center_z)
-			print(x , y ,z)
 			return round(x,1), round(y,1), round(z, 1), round(angle, 3)
+		else:
+			print('Rejected', round(center_x,1), round(center_y,1), round(center_z,1), round(angle,3), round(area))
+	print('Nothing to capture!')
 	return
 
 
@@ -169,3 +183,8 @@ def pars(input):
 
 def make_msg(sync, x, y, z, angle):
 	return 'c:{}:{}:{}:{}:{}'.format(sync, x, y, z, angle)
+
+def save_image(color, predict, binary_mask):
+	cv2.imwrite('prod/engine_predict.png', predict)
+	cv2.imwrite('prod/binaty.png', binary_mask)
+	cv2.imwrite('prod/color.png', color)
