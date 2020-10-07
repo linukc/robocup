@@ -25,9 +25,10 @@ def main():
 		print('---Message---')
 		print(msg)
 		print('----------------------')
-		socket.mysend(msg.encode(), '172.34.0.247', 19090)
+		print()
+		socket.mysend(msg.encode(), '172.34.0.254', 19090)
 		#save for debug
-		save_image(preproc(color), raw_mask, binary_mask)
+		save_image(color, depth, raw_mask, binary_mask)
 
 #camera
 pipeline = rs.pipeline()
@@ -57,6 +58,6 @@ except:
 
 try:
 	main()
-except:
+except KeyboardInterrupt:
 	pipeline.stop()
 	print('finish')

@@ -111,14 +111,90 @@ def make_binary(mask, border):
 	mask = np.where(mask >= border, mask, 0)
 	return mask
 
-def preprocessing_for_shaft(mask, box):
-	black = []
-	white = []
-	for point in box:
-		if mask[point[0], point[1]] == '0':
-			black.append(point)
-		else:
-			white.append(point)
+def preprocessing_for_shaft(usedEdge, c_x, c_y, angle, mask):
+	print('do preprocessing with shaft')
+	axis = None
+	angle1 = math.atan2(-usedEdge[1], usedEdge[0]) % 1.57
+	angle2 = 1.57 + angle1
+	num_pixels = 100
+	trans = np.array([[math.cos(angle1), -math.sin(angle1)],
+				[math.sin(angle1), math.cos(angle1)]])
+	for i in range(1, num_pixels+2, 2):
+		x_1_ = i
+		y_1_ = 0
+		x_2_ = 0
+		y_2_ = i
+		x_1, y_1 = map(int, np.dot(trans, np.array([x_1_, y_1_])))
+		x_2, y_2 = map(int, np.dot(trans, np.array([x_2_, y_2_])))
+		x1 = x_1 + c_x
+		x2 = x_2 + c_x
+		y1 = c_y - y_1
+		y2 = c_y - y_2
+		if mask[y1][x1] == 0 and mask[y2][x2] == 255:
+			axis = 2
+			x_1_ += 10
+			y_1_ = 0
+			x_1, y_1 = map(int, np.dot(trans, np.array([x_1_, y_1_])))
+			x1 = x_1 + c_x
+			y1 = c_y - y_1
+			angle = 1.57 - angle2
+			break
+		elif mask[y1][x1] == 255 and mask[y2][x2] == 0:
+			axis = 1
+			x_2_ = 0
+			y_2_ += 10
+			x_2, y_2 = map(int, np.dot(trans, np.array([x_2_, y_2_])))
+			x2 = x_2 + c_x
+			y2 = c_y - y_2
+			angle = 1.57 - angle1
+			break
+
+	if axis == 1:
+		for j in range(1, num_pixels+2, 2):
+			x_r = j
+			x_l = -j
+			y_ = y_2_
+			xr, yr = map(int, np.dot(trans, np.array([x_r, y_])))
+			xl, yl = map(int, np.dot(trans, np.array([x_l, y_])))
+			x1 = xr + c_x
+			y1 = c_y - yr
+			x2 = xl + c_x
+			y2 = c_y - yl
+			if mask[y1][x1] == 0 and mask[y2][x2] == 255:
+    				x, y = map(int, np.dot(trans, np.array([20, 0])))
+    				c_x_new = x + c_x
+    				c_y_new = c_y - y
+    				return angle, c_x_new, c_y_new
+			elif mask[y1][x1] == 255 and mask[y2][x2] == 0:
+    				x, y = map(int, np.dot(trans, np.array([-20, 0])))
+    				c_x_new = x + c_x
+    				c_y_new = c_y - y
+    				return angle, c_x_new, c_y_new
+
+	elif axis == 2:
+		for j in range(1, num_pixels+2, 2):
+			y_u = j
+			y_d = -j
+			x_ = x_1_
+			xu, yu = map(int, np.dot(trans, np.array([x_, y_u])))
+			xd, yd = map(int, np.dot(trans, np.array([x_, y_d])))
+			x1 = xu + c_x
+			y1 = c_y - yu
+			x2 = xd + c_x
+			y2 = c_y - yd
+			if mask[y1][x1] == 0 and mask[y2][x2] == 255:
+    				x, y = map(int, np.dot(trans, np.array([0, 20])))
+    				c_x_new = x + c_x
+    				c_y_new = c_y - y
+    				return angle, c_x_new, c_y_new
+			elif mask[y1][x1] == 255 and mask[y2][x2] == 0:
+				x, y = map(int, np.dot(trans, np.array([0, -20])))
+				c_x_new = x + c_x
+				c_y_new = c_y - y
+				return angle, c_x_new, c_y_new
+	else:
+		print('cant do preproccesing for shaft, return lod values')
+		return angle, c_x, c_y
 
 
 def get_info(obj_index, mask, depth, params, min_area):
@@ -130,24 +206,53 @@ def get_info(obj_index, mask, depth, params, min_area):
 		center_x, center_y = int(center_x), int(center_y)
 		edge1 = np.int0((box[1][0] - box[0][0], box[1][1] - box[0][1]))
 		edge2 = np.int0((box[2][0] - box[1][0], box[2][1] - box[1][1]))
-		if obj_index == 2:
-			usedEdge, box = preprocessing_for_shaft(mask, box)
-			#po novu box polychit coordinati x and y pereraschitanie
-		else:
-			usedEdge = edge1
-			if cv2.norm(edge2) > cv2.norm(edge1):
-				usedEdge = edge2
+		usedEdge = edge1
+		if cv2.norm(edge2) > cv2.norm(edge1):
+			usedEdge = edge2
+
 		#vertical
 		if usedEdge[1] == 0:
 			angle = 90*math.pi/180
 		else:
 			angle = 90*math.pi/180 - math.atan2(-usedEdge[1], usedEdge[0])
+		#shaft
+		if obj_index == 2:
+			try:
+				angle, center_x, center_y = preprocessing_for_shaft(usedEdge, center_x, center_y, angle, mask)
+			except Exception as e:
+				return
+		#depth
+		try:
+			depth_mat = depth[center_y-1:center_y+2, center_x-1:center_x+2]
+			sum_ = 0
+			count_ = 0
+			for row in depth_mat:
+				for elem in row:
+					if elem != 0:
+						sum_ += elem
+						count_ += 1
+			center_z = sum_ / count_
+			print('z with neighbors')
+		except ZeroDivisionError:
+			print('zero_division_error')
+			center_z = 0
 
-		center_z = depth[center_y][center_x]
 		area = int(length_x * length_y)
 		if area > min_area:
-			x, y, z = convert(params, [center_x, center_y], center_z)
-			return round(x,1), round(y,1), round(z, 1), round(angle, 3)
+			box_x = list(set([para[0] for para in box]))
+			box_y = list(set([para[1] for para in box]))
+			for i in box_x:
+				if i - 70 < 0 or i + 70 > 640:
+					return
+			for j in box_y:
+				if j - 5 < 0 or j + 5 > 480:
+					return
+			if center_z == 0:
+				print('zero depth')
+				return
+			else:
+				x, y, z = convert(params, [center_x, center_y], center_z)
+				return round(x,1), round(y,1), round(z, 1), round(angle, 3)
 		else:
 			print('Rejected', round(center_x,1), round(center_y,1), round(center_z,1), round(angle,3), round(area))
 	print('Nothing to capture!')
@@ -184,7 +289,8 @@ def pars(input):
 def make_msg(sync, x, y, z, angle):
 	return 'c:{}:{}:{}:{}:{}'.format(sync, x, y, z, angle)
 
-def save_image(color, predict, binary_mask):
+def save_image(color,depth,  predict, binary_mask):
 	cv2.imwrite('prod/engine_predict.png', predict)
-	cv2.imwrite('prod/binaty.png', binary_mask)
+	cv2.imwrite('prod/binary.png', binary_mask)
 	cv2.imwrite('prod/color.png', color)
+	cv2.imwrite('prod/depth.png', cv2.applyColorMap(cv2.convertScaleAbs(depth, alpha = 0.3), cv2.COLORMAP_JET))
