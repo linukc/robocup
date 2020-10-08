@@ -258,7 +258,50 @@ def get_info(obj_index, mask, depth, params, min_area):
 	print('Nothing to capture!')
 	return
 
+def make_hole(color):
+	black_MIN = np.array([0, 0, 0],np.uint8)
+	black_MAX = np.array([255, 255, 70],np.uint8)
 
+	hsv_img = cv2.cvtColor(color, cv2.COLOR_RGB2HSV)
+
+	frame = cv2.inRange(hsv_img, black_MIN, black_MAX)
+	for i in range(285, frame.shape[0]):
+		for j in range(frame.shape[1]):
+			frame[i][j] = 0
+			
+	frame = cv2.medianBlur(frame, 7)
+	
+	return frame
+			
+def get_info_p(bin_mask, obj_index, params):
+	center_z = 275
+	
+	contours, _ = cv2.findContours(np.array(bin_mask, dtype=np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+	for cnt in contours:
+		rect = cv2.minAreaRect(cnt)
+		box = np.int64(cv2.boxPoints(rect))
+		(center_x, center_y), (l_x, l_y), _ = rect
+		center_x, center_y = int(center_x), int(center_y)
+		l_x, l_y = int(l_x), int(l_y)
+		area = l_x * l_y
+		
+		if area > 4500:
+			if  (160 <= l_y <= 200 and obj_index == 0 and area >= 8000) or (4500 <= area <= 6000 and obj_index == 1) or (0 <= abs(l_x-l_y) <= 20 and area >= 8000 and obj_index == 2):
+				x, y, z = convert(params, [center_x, center_y], center_z)
+				#
+				im = np.dstack((bin_mask, bin_mask, bin_mask))
+				cv2.drawContours(im, [box], -1, (255, 0, 0), 2)
+				cv2.line(im, (box[0][0], box[0][1]), (center_x, center_y), (255, 0, 0))
+				cv2.imwrite('prod/pr_mask.png', im)	
+				print('find hole', l_x, l_y, area)
+		
+				return round(x,1), round(y,1), round(z, 2)		
+	print('Holes didnt find!')
+	return 
+	
+def make_msg_p(sync, x, y, z):
+	return 'p:{}:{}:{}:{}'.format(sync, x, y, z)
+	
 def get_camera(pipeline, align):
 	while True:
 		frames = pipeline.wait_for_frames()
@@ -283,8 +326,8 @@ def predict(engine, color, obj_index):
 	return predict[..., obj_index]*255
 
 def pars(input):
-	_, sync, obj_index = input.split(':')
-	return int(sync), int(obj_index)
+	command, sync, obj_index = input.split(':')
+	return command, int(sync), int(obj_index)
 
 def make_msg(sync, x, y, z, angle):
 	return 'c:{}:{}:{}:{}:{}'.format(sync, x, y, z, angle)
