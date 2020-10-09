@@ -105,20 +105,31 @@ def do_inference(engine, pics_1, h_input_1, d_input_1, h_output, d_output, strea
         out = h_output.reshape((batch_size, height, width, -1))
         return out
 
+def predict(engine, color, obj_index):
 
+	h_input, d_input, h_output, d_output, stream = allocate_buffers(engine, 1, trt.float32)
+	predict = do_inference(engine, color, h_input, d_input, h_output, d_output, stream, 1, 480, 640)
+
+	predict = predict.squeeze()
+	return predict[..., obj_index]*255
+	
 def make_binary(mask, border):
 	mask = np.where(mask < border, mask, 255)
 	mask = np.where(mask >= border, mask, 0)
 	return mask
 
 def preprocessing_for_shaft(usedEdge, c_x, c_y, angle, mask):
-	print('do preprocessing with shaft')
+	'''
+		Finding a 'base' and 'tube' part for T-shape objects and calculate right angle orientation for gripper
+	'''
+	print('do preprocessing for shaft')
 	axis = None
 	angle1 = math.atan2(-usedEdge[1], usedEdge[0]) % 1.57
 	angle2 = 1.57 + angle1
 	num_pixels = 100
 	trans = np.array([[math.cos(angle1), -math.sin(angle1)],
 				[math.sin(angle1), math.cos(angle1)]])
+	
 	for i in range(1, num_pixels+2, 2):
 		x_1_ = i
 		y_1_ = 0
@@ -197,7 +208,7 @@ def preprocessing_for_shaft(usedEdge, c_x, c_y, angle, mask):
 		return angle, c_x, c_y
 
 
-def get_info(obj_index, mask, depth, params, min_area):
+def get_info_c(obj_index, mask, depth, params, min_area):
 	contours, _ = cv2.findContours(np.array(mask, dtype=np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 	for cnt in contours:
 		rect = cv2.minAreaRect(cnt)
@@ -316,23 +327,14 @@ def get_camera(pipeline, align):
 	color_image = np.asanyarray(color_frame.get_data())
 	return color_image, depth_image, d_in
 
-
-def predict(engine, color, obj_index):
-
-	h_input, d_input, h_output, d_output, stream = allocate_buffers(engine, 1, trt.float32)
-	predict = do_inference(engine, color, h_input, d_input, h_output, d_output, stream, 1, 480, 640)
-
-	predict = predict.squeeze()
-	return predict[..., obj_index]*255
-
 def pars(input):
 	command, sync, obj_index = input.split(':')
 	return command, int(sync), int(obj_index)
 
-def make_msg(sync, x, y, z, angle):
+def make_msg_c(sync, x, y, z, angle):
 	return 'c:{}:{}:{}:{}:{}'.format(sync, x, y, z, angle)
 
-def save_image(color,depth,  predict, binary_mask):
+def save_image(color, depth,  predict, binary_mask):
 	cv2.imwrite('prod/engine_predict.png', predict)
 	cv2.imwrite('prod/binary.png', binary_mask)
 	cv2.imwrite('prod/color.png', color)

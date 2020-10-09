@@ -2,9 +2,9 @@ import cv2
 import tensorrt as trt
 from segmentation_models import get_preprocessing
 import pyrealsense2 as rs
-from utils import make_binary, get_info, get_camera, predict, pars, make_msg, MySocket, load_engine
-from utils import save_image
+from utils import make_binary, get_info_c, get_camera, predict, pars, make_msg_c, MySocket, load_engine
 from utils import make_hole, get_info_p, make_msg_p
+from utils import save_image
 
 def main():
 	#eventloop
@@ -17,20 +17,21 @@ def main():
 		color, depth, camera_params = get_camera(pipeline, align)
 		
 		if command == 'c':
-			raw_mask = predict(engine, preproc(color), obj_index)
-			binary_mask = make_binary(raw_mask, border=185)
-			info = get_info(obj_index, binary_mask, depth, camera_params, min_area=1500)
+			probability_mask = predict(engine, preproc(color), obj_index)
+			binary_mask = make_binary(probability_mask, border=185)
+			info = get_info_c(obj_index, binary_mask, depth, camera_params, min_area=1500)
 			if not info:
 				msg = 'c:{}:None'.format(sync)
 			else:
 				x, y, z, angle = info
-				msg = make_msg(sync, x, y, z, angle)
+				msg = make_msg_c(sync, x, y, z, angle)
 			print('---Message---')
 			print(msg)
 			print('----------------------')
 			print()
 			#save for debug
-			save_image(color, depth, raw_mask, binary_mask)
+			save_image(color, depth, probability_mask, binary_mask)
+			
 		elif command == 'p':	
 			bin_mask = make_hole(color)
 			info = get_info_p(bin_mask, obj_index, camera_params)
@@ -77,3 +78,5 @@ try:
 except KeyboardInterrupt:
 	pipeline.stop()
 	print('finish')
+except Exception as e:
+	print(e)
