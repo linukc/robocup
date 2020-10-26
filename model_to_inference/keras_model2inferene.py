@@ -40,6 +40,7 @@ while True:
 	color_frame = frames.get_color_frame()
 	if not color_frame:
 		continue
+	#needed imagenet preprocessing
 	color_image = np.asanyarray(color_frame.get_data())
 	batch_with_one_image = np.expand_dims(color_image, axis=0)
 	mask = model.predict(batch_with_one_image).squeeze()
