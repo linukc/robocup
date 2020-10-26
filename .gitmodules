@@ -1,3 +1,0 @@
-[submodule "torch2trt"]
-	path = engine/torch2trt
-	url = https://github.com/NVIDIA-AI-IOT/torch2trt
