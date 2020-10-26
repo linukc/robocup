@@ -10,9 +10,9 @@
 
  - tf|trt predict - https://github.com/jkjung-avt/keras_imagenet/blob/master/predict_image.py
 
- - Pipeline h52trt and tips from NVIDIA - https://developer.nvidia.com/blog/speeding-up-deep-learning-inference-using-tensorflow-onnx-and-tensorrt/
+ - **Pipeline h52trt and inf with engine from NVIDIA** - https://developer.nvidia.com/blog/speeding-up-deep-learning-inference-using-tensorflow-onnx-and-tensorrt/
  
- - Pipeline h52tf.pb2trt.pb and inference - https://www.dlology.com/blog/how-to-run-keras-model-on-jetson-nano/
+ - **Pipeline h52tf.pb2trt.pb and inference from graph** - https://www.dlology.com/blog/how-to-run-keras-model-on-jetson-nano/
  
     https://github.com/ardianumam/Tensorflow-TensorRT/blob/master/1_convert_TF_to_TRT.ipynb
 
