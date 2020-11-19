@@ -5,6 +5,6 @@ Robocup2020. CV part (Jetson Nano + RealSense D415).
 
 **Output:** trained U-net model for multiclass segmentation and optimized for inference on Jetson Nano (tensorrt).
 
-<img src="docs/jetson_nano_inference.png">
+<img src="docs/jetson_nano_inference.PNG">
 
 Benefit: Accurate T-shaped objects grab with perfect gripper orientation that other teams could not do with their 2D Yolo detectors.
